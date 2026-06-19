@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'peer.dart';
+import 'package:p2p_chatt/data/repository.dart' as repo_pkg;
+import 'package:p2p_chatt/data/models/peer_model.dart';
 
 class UDPDiscovery {
   static const String multicastAddress = '224.0.0.251';
@@ -29,7 +31,6 @@ class UDPDiscovery {
       _socket!.listen(_onData, onError: (e) => print('Discovery socket error: $e'));
 
       _announceTimer = Timer.periodic(announceInterval, (_) => _announce(listenPort ?? 4040));
-      // send immediate
       _announce(listenPort ?? 4040);
     } catch (e) {
       print('Failed to start UDP discovery: $e');
@@ -49,6 +50,10 @@ class UDPDiscovery {
       peer.lastSeen = DateTime.now();
       _peers[key] = peer;
       _peersCtrl.add(peers);
+
+      // Persist discovered peer
+      final pm = PeerModel(id: peer.id, name: peer.name, ip: peer.ip, port: peer.port, lastSeen: DateTime.now().millisecondsSinceEpoch);
+      repo_pkg.Repository().upsertPeer(pm);
     } catch (e) {
       print('Discovery parse error: $e');
     }

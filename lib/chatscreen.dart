@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'core/enhanced_p2p_chat_engine.dart';
 import 'core/udp_discovery.dart';
 import 'chat_bubble.dart';
+import 'package:p2p_chatt/data/repository.dart';
 
 class ChatScreen extends StatefulWidget {
   final String? initialTargetIp;
@@ -20,6 +21,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _msgController = TextEditingController();
   List<Map<String, dynamic>> messages = [];
   final int _port = 4040;
+  final Repository _repo = Repository();
 
   @override
   void initState() {
@@ -29,13 +31,25 @@ class _ChatScreenState extends State<ChatScreen> {
     }
     _engine = EnhancedP2PEngine(port: _port);
     _engine.startServer();
-    _engine.incoming.listen((msg) {
-      setState(() {
-        messages.add({'text': msg.payload['text'], 'isMe': false, 'from': msg.from});
-      });
+    _engine.incoming.listen((msg) async {
+      // persist & refresh
+      final text = msg.payload['text'] as String? ?? '';
+      await _repo.saveIncomingMessage(msg.from, text);
+      _loadMessagesForCurrentPeer();
     });
     _engine.logs.listen((l) => print('[ENGINE] $l'));
     UDPDiscovery.instance.start(deviceName: 'P2P-App', listenPort: _port);
+    // load stored messages for initial peer if any
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadMessagesForCurrentPeer());
+  }
+
+  Future<void> _loadMessagesForCurrentPeer() async {
+    final peerIp = _ipController.text.trim();
+    if (peerIp.isEmpty) return;
+    final msgs = await _repo.getMessagesForPeer(peerIp);
+    setState(() {
+      messages = msgs.map((m) => {'text': m.text, 'isMe': m.direction == 'out'}).toList();
+    });
   }
 
   Future<void> _sendMessage() async {
@@ -43,13 +57,19 @@ class _ChatScreenState extends State<ChatScreen> {
     final text = _msgController.text.trim();
     if (targetIp.isEmpty || text.isEmpty) return;
 
+    // save outgoing as pending
+    final msgId = await _repo.saveOutgoingMessage(targetIp, text);
+    // refresh immediately
+    await _loadMessagesForCurrentPeer();
+
     final ok = await _engine.sendChat(targetIp, text);
     if (ok) {
-      setState(() {
-        messages.add({'text': text, 'isMe': true, 'from': 'local'});
-      });
+      await _repo.updateMessageStatus(msgId, 'sent');
+      await _loadMessagesForCurrentPeer();
       _msgController.clear();
     } else {
+      await _repo.updateMessageStatus(msgId, 'failed');
+      await _loadMessagesForCurrentPeer();
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('فشل الإرسال إلى $targetIp')));
     }
   }

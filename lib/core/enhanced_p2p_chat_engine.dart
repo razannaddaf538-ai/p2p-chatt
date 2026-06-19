@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:uuid/uuid.dart';
 import 'p2p_message.dart';
+import 'package:p2p_chatt/data/repository.dart';
 
 class EnhancedP2PEngine {
   final int port;
@@ -65,6 +66,12 @@ class EnhancedP2PEngine {
         final acked = await conn.sendWithAck(msg, timeout: timeout);
         _outgoing.add(msg);
         ok = acked;
+        // update DB status when acked
+        if (acked) {
+          try {
+            await Repository().updateMessageStatus(msg.id, 'delivered');
+          } catch (_) {}
+        }
         if (acked) break;
       } catch (e) {
         _logs.add('Send attempt $attempt failed to $targetIp: $e');
@@ -75,11 +82,16 @@ class EnhancedP2PEngine {
     return ok;
   }
 
-  void _onMessageFromPeer(String peerIp, P2PMessage msg) {
+  void _onMessageFromPeer(String peerIp, P2PMessage msg) async {
     if (msg.type == 'ack') {
       return;
     }
     _sendAck(peerIp, msg.id);
+    // persist incoming message
+    try {
+      final text = msg.payload['text'] as String? ?? '';
+      await Repository().saveIncomingMessage(peerIp, text);
+    } catch (_) {}
     _incoming.add(msg);
   }
 
