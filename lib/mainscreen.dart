@@ -1,47 +1,38 @@
 import 'package:flutter/material.dart';
-import 'app_colors.dart';
-import 'chatscreen.dart';
+import 'peersScreen.dart';
 
-class PeersScreen extends StatelessWidget {
-  final List peers = [
-    "peer_1",
-    "peer_2",
-    "peer_3",
-    "peer_4",
+class MainScreen extends StatefulWidget {
+  @override
+  _MainScreenState createState() => _MainScreenState();
+}
+
+class _MainScreenState extends State<MainScreen> {
+  int currentIndex = 0;
+  final List<Widget> pages = [
+    PeersScreen(),
+    Scaffold(body: Center(child: Text("المجموعات"))),
+    Scaffold(body: Center(child: Text("الملفات"))),
+    Scaffold(body: Center(child: Text("حسابي"))),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("اكتشاف الأقران"),
-      ),
-      body: ListView.builder(
-        itemCount: peers.length,
-        itemBuilder: (_, index) {
-          return Card(
-            child: ListTile(
-              leading: const CircleAvatar(
-                backgroundColor: AppColors.primary,
-                child: Icon(Icons.person),
-              ),
-              title: Text(peers[index]),
-              subtitle: Text(
-                "192.168.1.${index + 1}",
-              ),
-              trailing: ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => ChatScreen()),
-                  );
-                },
-                child: const Text("اتصال"),
-              ),
-            ),
-          );
-        },
+      body: pages[currentIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: currentIndex,
+        onTap: (index) => setState(() => currentIndex = index),
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: Color(0xFFF8A8C8),
+        unselectedItemColor: Colors.grey,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.people), label: "الأقران"),
+          BottomNavigationBarItem(icon: Icon(Icons.group), label: "المجموعات"),
+          BottomNavigationBarItem(icon: Icon(Icons.folder), label: "الملفات"),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: "حسابي"),
+        ],
       ),
     );
   }
 }
+
